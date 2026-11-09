@@ -49,12 +49,10 @@ http://localhost:8000
 
 La documentación académica se encuentra en la carpeta `docs/`.
 
-
-
 ## Gestión del proyecto
 
 - Repositorio: https://github.com/rulo89b/evidencia-t-cnica
-- Tablero: URL del proyecto de GitHub.
+- Tablero: https://github.com/users/rulo89b/projects/3/views/1
 
 ## Estado
 
