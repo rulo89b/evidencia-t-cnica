@@ -31,8 +31,8 @@ Facilitar la configuración de servicios técnicos mediante plantillas de eviden
 ### 1. Clonar el repositorio
 
 ```bash
-git clone URL_DEL_REPOSITORIO
-cd evidencia-tecnica
+git clone https://github.com/rulo89b/evidencia-t-cnica
+cd evidencia-t-cnica
 ```
 
 ### 2. Ejecutar con Docker
