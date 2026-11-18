@@ -1,0 +1,32 @@
+
+{% extends "base.html" %}
+
+{% block title %}Eliminar plantilla{% endblock %}
+
+{% block content %}
+
+<h2>Eliminar plantilla</h2>
+
+<p>
+    ¿Estás seguro de que deseas eliminar
+    "{{ template.name }}"?
+</p>
+
+<p>
+    Los trabajos creados anteriormente con esta
+    plantilla conservarán sus requisitos fotográficos.
+</p>
+
+<form method="post">
+    {% csrf_token %}
+
+    <button type="submit">
+        Confirmar eliminación
+    </button>
+
+    <a href="{% url 'servicios:template_list' %}">
+        Cancelar
+    </a>
+</form>
+
+{% endblock %}

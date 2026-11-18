@@ -1,0 +1,44 @@
+
+{% extends "base.html" %}
+
+{% block title %}Mis plantillas{% endblock %}
+
+{% block content %}
+
+<h2>Mis plantillas</h2>
+
+<a href="{% url 'servicios:template_create' %}">
+    Nueva plantilla
+</a>
+
+<hr>
+
+{% for template in templates %}
+
+    <article>
+        <h3>{{ template.name }}</h3>
+
+        <p>{{ template.description|default:"Sin descripción" }}</p>
+
+        <p>
+            Creada: {{ template.created_at|date:"d/m/Y" }}
+        </p>
+
+        <a href="{% url 'servicios:template_update' template.pk %}">
+            Editar
+        </a>
+
+        <a href="{% url 'servicios:template_delete' template.pk %}">
+            Eliminar
+        </a>
+    </article>
+
+    <hr>
+
+{% empty %}
+
+    <p>Todavía no tienes plantillas.</p>
+
+{% endfor %}
+
+{% endblock %}
