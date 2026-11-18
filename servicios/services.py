@@ -11,6 +11,9 @@ from .models import (
     JobAssignment,
 )
 
+from django.db.models import Max
+from .models import Template, TemplatePhoto
+
 
 @transaction.atomic
 def create_job(
@@ -178,3 +181,116 @@ def reassign_job(*, job, user, new_assignee):
     )
 
     return job
+
+
+@transaction.atomic
+def create_template_photo(
+    *,
+    template,
+    title,
+    instructions="",
+    stage,
+    is_required=True,
+):
+    template = Template.objects.select_for_update().get(
+        pk=template.pk,
+        deleted_at__isnull=True,
+    )
+
+    last_position = template.photos.aggregate(
+        last=Max("position")
+    )["last"] or 0
+
+    photo = TemplatePhoto.objects.create(
+        template=template,
+        position=last_position + 1,
+        title=title,
+        instructions=instructions,
+        stage=stage,
+        is_required=is_required,
+    )
+
+    return photo
+
+
+@transaction.atomic
+def delete_template_photo(*, photo):
+
+    template = Template.objects.select_for_update().get(
+        pk=photo.template_id,
+        deleted_at__isnull=True,
+    )
+
+    photo = template.photos.get(pk=photo.pk)
+
+    deleted_position = photo.position
+
+    photo.delete()
+
+    remaining_photos = template.photos.filter(
+        position__gt=deleted_position
+    ).order_by("position")
+
+    for remaining_photo in remaining_photos:
+        remaining_photo.position -= 1
+
+        remaining_photo.save(
+            update_fields=["position", "updated_at"]
+        )
+
+
+@transaction.atomic
+def move_template_photo(*, photo, direction):
+
+    if direction not in ("up", "down"):
+        raise ValidationError(
+            "Dirección de movimiento inválida."
+        )
+
+    template = Template.objects.select_for_update().get(
+        pk=photo.template_id,
+        deleted_at__isnull=True,
+    )
+
+    photo = template.photos.get(pk=photo.pk)
+
+    if direction == "up":
+        target = template.photos.filter(
+            position__lt=photo.position,
+        ).order_by("-position").first()
+
+    else:
+        target = template.photos.filter(
+            position__gt=photo.position,
+        ).order_by("position").first()
+
+    # Ya se encuentra en el extremo correspondiente.
+    if target is None:
+        return photo
+
+    original_position = photo.position
+    target_position = target.position
+
+    temporary_position = template.photos.aggregate(
+        last=Max("position")
+    )["last"] + 1
+
+    # Mover temporalmente la primera fotografía.
+    photo.position = temporary_position
+    photo.save(
+        update_fields=["position", "updated_at"]
+    )
+
+    # Mover la segunda fotografía.
+    target.position = original_position
+    target.save(
+        update_fields=["position", "updated_at"]
+    )
+
+    # Colocar la primera en su posición definitiva.
+    photo.position = target_position
+    photo.save(
+        update_fields=["position", "updated_at"]
+    )
+
+    return photo

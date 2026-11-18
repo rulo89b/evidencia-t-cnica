@@ -27,4 +27,31 @@ urlpatterns = [
         views.template_delete,
         name="template_delete",
     ),
+
+    path(
+        "plantillas/<uuid:pk>/",
+        views.template_detail,
+        name="template_detail",
+    ),
+    path(
+        "plantillas/<uuid:pk>/fotos/nueva/",
+        views.template_photo_create,
+        name="template_photo_create",
+    ),
+    path(
+        "plantillas/<uuid:pk>/fotos/<uuid:photo_pk>/editar/",
+        views.template_photo_update,
+        name="template_photo_update",
+    ),
+    path(
+        "plantillas/<uuid:pk>/fotos/<uuid:photo_pk>/eliminar/",
+        views.template_photo_delete,
+        name="template_photo_delete",
+    ),
+    path(
+        "plantillas/<uuid:pk>/fotos/<uuid:photo_pk>/mover/",
+        views.template_photo_move,
+        name="template_photo_move",
+    ),
+
 ]

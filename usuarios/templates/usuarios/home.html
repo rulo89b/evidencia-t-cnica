@@ -9,10 +9,16 @@
 
 <p>Selecciona una opción para comenzar.</p>
 
+
 <ul>
     <li>Mis trabajos</li>
-    <li>Mis plantillas</li>
+    <li>
+        <a href="{% url 'servicios:template_list' %}">
+            Mis plantillas
+        </a>
+    </li>
     <li>Mis grupos</li>
 </ul>
+
 
 {% endblock %}
