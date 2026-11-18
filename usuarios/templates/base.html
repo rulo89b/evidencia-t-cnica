@@ -1,0 +1,57 @@
+
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport"
+          content="width=device-width, initial-scale=1.0">
+
+    <title>
+        {% block title %}Evidencia Técnica{% endblock %}
+    </title>
+</head>
+<body>
+
+    <header>
+        <h1>Evidencia Técnica</h1>
+
+        <nav>
+            {% if user.is_authenticated %}
+
+                <a href="{% url 'usuarios:home' %}">
+                    Inicio
+                </a>
+
+                <span>{{ user.username }}</span>
+
+                <form method="post"
+                      action="{% url 'usuarios:logout' %}">
+                    {% csrf_token %}
+                    <button type="submit">
+                        Cerrar sesión
+                    </button>
+                </form>
+
+            {% else %}
+
+                <a href="{% url 'usuarios:login' %}">
+                    Iniciar sesión
+                </a>
+
+                <a href="{% url 'usuarios:register' %}">
+                    Registrarse
+                </a>
+
+            {% endif %}
+        </nav>
+    </header>
+
+    <hr>
+
+    <main>
+        {% block content %}
+        {% endblock %}
+    </main>
+
+</body>
+</html>
