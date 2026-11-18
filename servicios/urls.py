@@ -54,4 +54,21 @@ urlpatterns = [
         name="template_photo_move",
     ),
 
+    path(
+        "trabajos/",
+        views.job_list,
+        name="job_list",
+    ),
+    path(
+        "trabajos/nuevo/",
+        views.job_create,
+        name="job_create",
+    ),
+    path(
+        "trabajos/<uuid:pk>/",
+        views.job_detail,
+        name="job_detail",
+    ),
+
+
 ]

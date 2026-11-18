@@ -1,0 +1,41 @@
+
+{% extends "base.html" %}
+
+{% block title %}Nuevo trabajo{% endblock %}
+
+{% block content %}
+
+<h2>Nuevo trabajo</h2>
+
+{% if form.fields.template.queryset.exists %}
+
+    <form method="post">
+
+        {% csrf_token %}
+
+        {{ form.as_p }}
+
+        <button type="submit">
+            Crear trabajo
+        </button>
+
+        <a href="{% url 'servicios:job_list' %}">
+            Cancelar
+        </a>
+
+    </form>
+
+{% else %}
+
+    <p>
+        Necesitas crear una plantilla antes
+        de poder registrar un trabajo.
+    </p>
+
+    <a href="{% url 'servicios:template_create' %}">
+        Crear plantilla
+    </a>
+
+{% endif %}
+
+{% endblock %}

@@ -1,0 +1,59 @@
+
+{% extends "base.html" %}
+
+{% block title %}Mis trabajos{% endblock %}
+
+{% block content %}
+
+<h2>Mis trabajos</h2>
+
+<a href="{% url 'servicios:job_create' %}">
+    Nuevo trabajo
+</a>
+
+<hr>
+
+{% for job in jobs %}
+
+    <article>
+
+        <h3>{{ job.site_name }}</h3>
+
+        <p>
+            Servicio: {{ job.template.name }}
+        </p>
+
+        <p>
+            Estado: {{ job.get_status_display }}
+        </p>
+
+        <p>
+            {% if job.group %}
+                Grupo: {{ job.group.name }}
+            {% else %}
+                Trabajo individual
+            {% endif %}
+        </p>
+
+        {% if job.due_date %}
+            <p>
+                Fecha límite:
+                {{ job.due_date|date:"d/m/Y" }}
+            </p>
+        {% endif %}
+
+        <a href="{% url 'servicios:job_detail' job.pk %}">
+            Ver trabajo
+        </a>
+
+    </article>
+
+    <hr>
+
+{% empty %}
+
+    <p>Todavía no tienes trabajos asignados.</p>
+
+{% endfor %}
+
+{% endblock %}

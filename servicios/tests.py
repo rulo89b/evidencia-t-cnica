@@ -734,3 +734,251 @@ class TemplatePhotoViewTests(TestCase):
         self.assertEqual(slot.title, "Fachada")
         self.assertEqual(slot.position, 1)
         self.assertEqual(job.photo_slots.count(), 3)
+
+
+class JobViewTests(TestCase):
+
+    def setUp(self):
+        self.user = User.objects.create_user(
+            username="tecnico",
+            email="tecnico@example.com",
+            password="test12345",
+        )
+
+        self.other_user = User.objects.create_user(
+            username="otro",
+            email="otro@example.com",
+            password="test12345",
+        )
+
+        self.template = Template.objects.create(
+            owner=self.user,
+            name="Instalación MW",
+        )
+
+        self.other_template = Template.objects.create(
+            owner=self.other_user,
+            name="Plantilla ajena",
+        )
+
+        self.photo = create_template_photo(
+            template=self.template,
+            title="Fachada",
+            stage=TemplatePhoto.Stage.BEFORE,
+        )
+
+        self.job = create_job(
+            user=self.user,
+            template=self.template,
+            site_name="Sitio Norte",
+        )
+
+        self.other_job = create_job(
+            user=self.other_user,
+            template=self.other_template,
+            site_name="Sitio ajeno",
+        )
+
+        self.client.force_login(self.user)
+
+    def test_job_list_requires_login(self):
+        self.client.logout()
+
+        response = self.client.get(
+            reverse("servicios:job_list")
+        )
+
+        self.assertEqual(response.status_code, 302)
+
+    def test_list_only_assigned_jobs(self):
+        response = self.client.get(
+            reverse("servicios:job_list")
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Sitio Norte")
+        self.assertNotContains(response, "Sitio ajeno")
+
+    def test_job_create_page(self):
+        response = self.client.get(
+            reverse("servicios:job_create")
+        )
+
+        self.assertEqual(response.status_code, 200)
+
+        self.assertContains(
+            response,
+            "Instalación MW",
+        )
+
+        self.assertNotContains(
+            response,
+            "Plantilla ajena",
+        )
+
+    def test_create_job(self):
+        response = self.client.post(
+            reverse("servicios:job_create"),
+            {
+                "template": self.template.pk,
+                "site_name": "Sitio Sur",
+                "notes": "Instalación nueva",
+                "due_date": "",
+            },
+        )
+
+        job = Job.objects.get(
+            site_name="Sitio Sur"
+        )
+
+        self.assertRedirects(
+            response,
+            reverse(
+                "servicios:job_detail",
+                args=[job.pk],
+            ),
+        )
+
+        self.assertEqual(job.created_by, self.user)
+        self.assertEqual(job.assigned_to, self.user)
+        self.assertIsNone(job.group)
+        self.assertEqual(job.status, Job.Status.PENDING)
+
+    def test_create_job_generates_slots(self):
+        self.client.post(
+            reverse("servicios:job_create"),
+            {
+                "template": self.template.pk,
+                "site_name": "Sitio Nuevo",
+            },
+        )
+
+        job = Job.objects.get(
+            site_name="Sitio Nuevo"
+        )
+
+        self.assertEqual(job.photo_slots.count(), 1)
+
+        slot = job.photo_slots.get()
+
+        self.assertEqual(slot.title, self.photo.title)
+        self.assertEqual(slot.position, self.photo.position)
+
+    def test_create_job_generates_assignment(self):
+        self.client.post(
+            reverse("servicios:job_create"),
+            {
+                "template": self.template.pk,
+                "site_name": "Sitio Nuevo",
+            },
+        )
+
+        job = Job.objects.get(
+            site_name="Sitio Nuevo"
+        )
+
+        assignment = job.assignments.get()
+
+        self.assertEqual(assignment.assigned_to, self.user)
+        self.assertIsNone(assignment.ended_at)
+
+        self.assertEqual(
+            assignment.reason,
+            JobAssignment.Reason.INITIAL,
+        )
+
+    def test_cannot_create_job_with_foreign_template(self):
+        response = self.client.post(
+            reverse("servicios:job_create"),
+            {
+                "template": self.other_template.pk,
+                "site_name": "Trabajo inválido",
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+
+        self.assertFalse(
+            Job.objects.filter(
+                site_name="Trabajo inválido"
+            ).exists()
+        )
+
+    def test_cannot_create_job_with_deleted_template(self):
+        self.template.deleted_at = timezone.now()
+        self.template.save()
+
+        response = self.client.post(
+            reverse("servicios:job_create"),
+            {
+                "template": self.template.pk,
+                "site_name": "Trabajo inválido",
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+
+        self.assertFalse(
+            Job.objects.filter(
+                site_name="Trabajo inválido"
+            ).exists()
+        )
+
+    def test_job_detail(self):
+        response = self.client.get(
+            reverse(
+                "servicios:job_detail",
+                args=[self.job.pk],
+            )
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Sitio Norte")
+        self.assertContains(response, "Fachada")
+
+    def test_cannot_access_another_users_job(self):
+        response = self.client.get(
+            reverse(
+                "servicios:job_detail",
+                args=[self.other_job.pk],
+            )
+        )
+
+        self.assertEqual(response.status_code, 404)
+
+    def test_initial_job_progress(self):
+        response = self.client.get(
+            reverse(
+                "servicios:job_detail",
+                args=[self.job.pk],
+            )
+        )
+
+        self.assertEqual(
+            response.context["required_total"],
+            1,
+        )
+
+        self.assertEqual(
+            response.context["required_captured"],
+            0,
+        )
+
+        self.assertEqual(
+            response.context["progress"],
+            0,
+        )
+
+    def test_job_remains_accessible_after_template_deletion(self):
+        self.template.deleted_at = timezone.now()
+        self.template.save()
+
+        response = self.client.get(
+            reverse(
+                "servicios:job_detail",
+                args=[self.job.pk],
+            )
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Fachada")
