@@ -1,0 +1,85 @@
+
+{% extends "base.html" %}
+
+{% block title %}{{ template.name }}{% endblock %}
+
+{% block content %}
+
+<a href="{% url 'servicios:template_list' %}">
+    Volver a mis plantillas
+</a>
+
+<h2>{{ template.name }}</h2>
+
+<p>{{ template.description }}</p>
+
+<h3>Fotografías requeridas ({{ photos|length }})</h3>
+
+<a href="{% url 'servicios:template_photo_create' template.pk %}">
+    Agregar fotografía
+</a>
+
+<hr>
+
+{% for photo in photos %}
+
+    <article>
+
+        <h4>{{ photo.position }}. {{ photo.title }}</h4>
+
+        <p>
+            Etapa: {{ photo.get_stage_display }}
+        </p>
+
+        <p>
+            {% if photo.is_required %}
+                Obligatoria
+            {% else %}
+                Opcional
+            {% endif %}
+        </p>
+
+        <p>
+            {{ photo.instructions|default:"Sin instrucciones" }}
+        </p>
+
+        <a href="{% url 'servicios:template_photo_update' template.pk photo.pk %}">
+            Editar
+        </a>
+
+        <a href="{% url 'servicios:template_photo_delete' template.pk photo.pk %}">
+            Eliminar
+        </a>
+
+        <form method="post"
+              action="{% url 'servicios:template_photo_move' template.pk photo.pk %}">
+
+            {% csrf_token %}
+
+            <button type="submit"
+                    name="direction"
+                    value="up"
+                    {% if forloop.first %}disabled{% endif %}>
+                Subir
+            </button>
+
+            <button type="submit"
+                    name="direction"
+                    value="down"
+                    {% if forloop.last %}disabled{% endif %}>
+                Bajar
+            </button>
+
+        </form>
+
+    </article>
+
+    <hr>
+
+{% empty %}
+
+    <p>Esta plantilla todavía no tiene fotografías configuradas.</p>
+
+{% endfor %}
+
+{% endblock %}

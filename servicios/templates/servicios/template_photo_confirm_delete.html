@@ -1,0 +1,34 @@
+
+{% extends "base.html" %}
+
+{% block title %}Eliminar fotografía{% endblock %}
+
+{% block content %}
+
+<h2>Eliminar fotografía</h2>
+
+<p>
+    ¿Deseas eliminar el requisito
+    "{{ photo.title }}"?
+</p>
+
+<p>
+    Esta operación no modificará los trabajos
+    creados anteriormente.
+</p>
+
+<form method="post">
+
+    {% csrf_token %}
+
+    <button type="submit">
+        Confirmar eliminación
+    </button>
+
+    <a href="{% url 'servicios:template_detail' photo.template_id %}">
+        Cancelar
+    </a>
+
+</form>
+
+{% endblock %}

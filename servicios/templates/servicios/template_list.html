@@ -24,6 +24,10 @@
             Creada: {{ template.created_at|date:"d/m/Y" }}
         </p>
 
+        <a href="{% url 'servicios:template_detail' template.pk %}">
+            Configurar fotografías
+        </a>
+
         <a href="{% url 'servicios:template_update' template.pk %}">
             Editar
         </a>
