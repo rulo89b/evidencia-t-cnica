@@ -294,3 +294,108 @@ def move_template_photo(*, photo, direction):
     )
 
     return photo
+
+
+@transaction.atomic
+def capture_job_photo(*, slot, user, photo):
+    # Obtener versiones actualizadas del trabajo y requisito.
+    slot = JobPhotoSlot.objects.select_related(
+        "job"
+    ).get(pk=slot.pk)
+
+    job = Job.objects.select_for_update().get(
+        pk=slot.job_id
+    )
+
+    if job.assigned_to_id != user.pk:
+        raise PermissionDenied(
+            "No eres el responsable actual del trabajo."
+        )
+
+    if job.status not in (
+        Job.Status.PENDING,
+        Job.Status.IN_PROGRESS,
+    ):
+        raise ValidationError(
+            "No se pueden modificar evidencias "
+            "de un trabajo finalizado o cancelado."
+        )
+
+    old_file_name = slot.photo_path.name
+    storage = slot.photo_path.storage
+
+    # Guardar la nueva imagen y sus datos.
+    slot.photo_path = photo
+    slot.captured_by = user
+    slot.captured_at = timezone.now()
+
+    slot.save(
+        update_fields=[
+            "photo_path",
+            "captured_by",
+            "captured_at",
+        ]
+    )
+
+    # La primera captura inicia el trabajo.
+    if job.status == Job.Status.PENDING:
+        job.status = Job.Status.IN_PROGRESS
+        job.started_at = timezone.now()
+        job.save(
+            update_fields=[
+                "status",
+                "started_at",
+                "updated_at",
+            ]
+        )
+
+    # Borrar el archivo anterior solo después del commit.
+    if old_file_name and old_file_name != slot.photo_path.name:
+        transaction.on_commit(
+            lambda: storage.delete(old_file_name)
+        )
+
+    return slot
+
+
+@transaction.atomic
+def complete_job(*, job, user):
+    job = Job.objects.select_for_update().get(
+        pk=job.pk
+    )
+
+    if job.assigned_to_id != user.pk:
+        raise PermissionDenied(
+            "No eres el responsable del trabajo."
+        )
+
+    if job.status not in (
+        Job.Status.PENDING,
+        Job.Status.IN_PROGRESS,
+    ):
+        raise ValidationError(
+            "El trabajo no puede finalizarse en su estado actual."
+        )
+
+    pending_required = job.photo_slots.filter(
+        is_required=True,
+        photo_path="",
+    ).exists()
+
+    if pending_required:
+        raise ValidationError(
+            "Debes capturar todas las fotografías obligatorias."
+        )
+
+    job.status = Job.Status.COMPLETED
+    job.completed_at = timezone.now()
+
+    job.save(
+        update_fields=[
+            "status",
+            "completed_at",
+            "updated_at",
+        ]
+    )
+
+    return job

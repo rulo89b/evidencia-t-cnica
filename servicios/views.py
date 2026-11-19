@@ -1,16 +1,21 @@
 
 from django.contrib.auth.decorators import login_required
+from django.contrib import messages
 from django.shortcuts import render, redirect, get_object_or_404
+from django.core.exceptions import PermissionDenied, ValidationError
 from django.utils import timezone
 from django.views.decorators.http import require_http_methods, require_POST
 from django.http import HttpResponseBadRequest
 
-from .forms import TemplateForm, TemplatePhotoForm
-from .models import Template, TemplatePhoto
+from .forms import TemplateForm, TemplatePhotoForm, JobForm, JobPhotoForm
+from .models import Template, TemplatePhoto, Job, JobPhotoSlot
 from .services import (
     create_template_photo,
     delete_template_photo,
     move_template_photo,
+    create_job,
+    capture_job_photo,
+    complete_job,
 )
 
 
@@ -269,5 +274,188 @@ def template_photo_move(request, pk, photo_pk):
 
     return redirect(
         "servicios:template_detail",
+        pk=pk,
+    )
+
+
+@login_required
+def job_list(request):
+
+    jobs = Job.objects.filter(
+        assigned_to=request.user,
+    ).select_related(
+        "template",
+        "group",
+    ).order_by("-created_at")
+
+    return render(
+        request,
+        "servicios/job_list.html",
+        {"jobs": jobs},
+    )
+
+
+@login_required
+@require_http_methods(["GET", "POST"])
+def job_create(request):
+
+    if request.method == "POST":
+        form = JobForm(
+            request.POST,
+            user=request.user,
+        )
+
+        if form.is_valid():
+
+            try:
+                job = create_job(
+                    user=request.user,
+                    **form.cleaned_data,
+                )
+
+            except ValidationError as error:
+                form.add_error(None, error)
+
+            except PermissionDenied as error:
+                form.add_error(None, str(error))
+
+            else:
+                return redirect(
+                    "servicios:job_detail",
+                    pk=job.pk,
+                )
+
+    else:
+        form = JobForm(user=request.user)
+
+    return render(
+        request,
+        "servicios/job_form.html",
+        {"form": form},
+    )
+
+
+@login_required
+def job_detail(request, pk):
+
+    job = get_object_or_404(
+        Job.objects.select_related(
+            "template",
+            "group",
+        ),
+        pk=pk,
+        assigned_to=request.user,
+    )
+
+    slots = list(job.photo_slots.all())
+
+    required_slots = [
+        slot for slot in slots
+        if slot.is_required
+    ]
+
+    required_total = len(required_slots)
+
+    required_captured = sum(
+        slot.is_captured
+        for slot in required_slots
+    )
+
+    progress = (
+        round(required_captured / required_total * 100)
+        if required_total
+        else 100
+    )
+
+    return render(
+        request,
+        "servicios/job_detail.html",
+        {
+            "job": job,
+            "slots": slots,
+            "required_total": required_total,
+            "required_captured": required_captured,
+            "progress": progress,
+        },
+    )
+
+
+@login_required
+@require_http_methods(["GET", "POST"])
+def job_photo_capture(request, pk, slot_pk):
+
+    slot = get_object_or_404(
+        JobPhotoSlot.objects.select_related("job"),
+        pk=slot_pk,
+        job_id=pk,
+        job__assigned_to=request.user,
+    )
+
+    if slot.job.status not in (
+        Job.Status.PENDING,
+        Job.Status.IN_PROGRESS,
+    ):
+        return HttpResponseBadRequest(
+            "Este trabajo no admite nuevas capturas."
+        )
+
+    if request.method == "POST":
+        form = JobPhotoForm(
+            request.POST,
+            request.FILES,
+        )
+
+        if form.is_valid():
+            try:
+                capture_job_photo(
+                    slot=slot,
+                    user=request.user,
+                    photo=form.cleaned_data["photo"],
+                )
+            except ValidationError as error:
+                form.add_error(None, error)
+            else:
+                return redirect(
+                    "servicios:job_detail",
+                    pk=pk,
+                )
+    else:
+        form = JobPhotoForm()
+
+    return render(
+        request,
+        "servicios/job_photo_form.html",
+        {
+            "form": form,
+            "slot": slot,
+            "job": slot.job,
+        },
+    )
+
+
+@login_required
+@require_POST
+def job_complete(request, pk):
+
+    job = get_object_or_404(
+        Job,
+        pk=pk,
+        assigned_to=request.user,
+    )
+
+    try:
+        complete_job(job=job, user=request.user)
+
+    except ValidationError as error:
+        messages.error(request, "; ".join(error.messages))
+
+    else:
+        messages.success(
+            request,
+            "El trabajo se ha completado correctamente.",
+        )
+
+    return redirect(
+        "servicios:job_detail",
         pk=pk,
     )
