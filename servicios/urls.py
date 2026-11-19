@@ -70,5 +70,17 @@ urlpatterns = [
         name="job_detail",
     ),
 
+    path(
+        "trabajos/<uuid:pk>/fotos/<uuid:slot_pk>/capturar/",
+        views.job_photo_capture,
+        name="job_photo_capture",
+    ),
+    path(
+        "trabajos/<uuid:pk>/finalizar/",
+        views.job_complete,
+        name="job_complete",
+    ),
+
+
 
 ]

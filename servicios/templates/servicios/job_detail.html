@@ -81,6 +81,31 @@
             {% endif %}
         </p>
 
+        {% if slot.photo_path %}
+            <p>
+                <img
+                    src="{{ slot.photo_path.url }}"
+                    alt="{{ slot.title }}"
+                    style="max-width:100%; max-height:250px;"
+                >
+            </p>
+
+            <p>
+                Capturada:
+                {{ slot.captured_at|date:"d/m/Y H:i" }}
+            </p>
+        {% endif %}
+
+        {% if job.status == "pending" or job.status == "in_progress" %}
+            <a href="{% url 'servicios:job_photo_capture' job.pk slot.pk %}">
+                {% if slot.is_captured %}
+                    Reemplazar fotografía
+                {% else %}
+                    Tomar fotografía
+                {% endif %}
+            </a>
+        {% endif %}
+
     </article>
 
     <hr>
@@ -90,5 +115,39 @@
     <p>Este trabajo no tiene requisitos fotográficos.</p>
 
 {% endfor %}
+
+
+{% if messages %}
+    {% for message in messages %}
+        <p>{{ message }}</p>
+    {% endfor %}
+{% endif %}
+
+{% if job.status == "pending" or job.status == "in_progress" %}
+
+    {% if required_captured == required_total %}
+
+        <form
+            method="post"
+            action="{% url 'servicios:job_complete' job.pk %}"
+        >
+            {% csrf_token %}
+
+            <button type="submit">
+                Finalizar trabajo
+            </button>
+        </form>
+
+    {% else %}
+
+        <p>
+            Completa las fotografías obligatorias
+            para poder finalizar este trabajo.
+        </p>
+
+    {% endif %}
+
+{% endif %}
+
 
 {% endblock %}

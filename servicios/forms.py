@@ -83,3 +83,30 @@ class JobForm(forms.ModelForm):
                 deleted_at__isnull=True,
             ).order_by("name")
         )
+
+
+class JobPhotoForm(forms.Form):
+    photo = forms.ImageField(
+        label="Fotografía",
+        widget=forms.ClearableFileInput(
+            attrs={
+                "accept": "image/jpeg,image/png,image/webp",
+                "capture": "environment",
+            }
+        ),
+    )
+
+    def clean_photo(self):
+        photo = self.cleaned_data["photo"]
+
+        if photo.size > 10 * 1024 * 1024:
+            raise forms.ValidationError(
+                "La fotografía no puede superar 10 MB."
+            )
+
+        if photo.image.format not in ("JPEG", "PNG", "WEBP"):
+            raise forms.ValidationError(
+                "Solo se aceptan imágenes JPEG, PNG o WebP."
+            )
+
+        return photo

@@ -1,4 +1,10 @@
 
+import io
+import tempfile
+
+from PIL import Image
+
+from django.core.files.uploadedfile import SimpleUploadedFile
 from django.urls import reverse
 from django.core.exceptions import PermissionDenied
 from .services import create_job, reassign_job, create_template_photo
@@ -8,7 +14,7 @@ from grupos.models import GroupMember
 from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError
 from django.db import IntegrityError, transaction
-from django.test import TestCase
+from django.test import TestCase, override_settings
 from django.utils import timezone
 
 
@@ -982,3 +988,211 @@ class JobViewTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Fachada")
+
+
+class JobPhotoCaptureTests(TestCase):
+
+    def setUp(self):
+        self.temp_dir = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temp_dir.cleanup)
+
+        media_override = override_settings(
+            MEDIA_ROOT=self.temp_dir.name,
+        )
+        media_override.enable()
+        self.addCleanup(media_override.disable)
+
+        self.user = User.objects.create_user(
+            username="tecnico_captura",
+            email="captura@example.com",
+            password="Test12345!",
+        )
+
+        self.other_user = User.objects.create_user(
+            username="otro_captura",
+            email="otro_captura@example.com",
+            password="Test12345!",
+        )
+
+        template = Template.objects.create(
+            owner=self.user,
+            name="Inspección",
+        )
+
+        TemplatePhoto.objects.create(
+            template=template,
+            position=1,
+            title="Fachada",
+            stage=TemplatePhoto.Stage.BEFORE,
+        )
+
+        self.job = create_job(
+            user=self.user,
+            template=template,
+            site_name="Sitio Norte",
+        )
+
+        self.slot = self.job.photo_slots.get()
+
+        self.capture_url = reverse(
+            "servicios:job_photo_capture",
+            args=[self.job.pk, self.slot.pk],
+        )
+
+        self.complete_url = reverse(
+            "servicios:job_complete",
+            args=[self.job.pk],
+        )
+
+        self.client.force_login(self.user)
+
+    def make_image(self, name="foto.png"):
+        buffer = io.BytesIO()
+
+        Image.new(
+            "RGB",
+            (20, 20),
+            color="blue",
+        ).save(buffer, format="PNG")
+
+        return SimpleUploadedFile(
+            name,
+            buffer.getvalue(),
+            content_type="image/png",
+        )
+
+    def test_capture_page(self):
+        response = self.client.get(self.capture_url)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Fachada")
+
+    def test_capture_photo_starts_job(self):
+        response = self.client.post(
+            self.capture_url,
+            {"photo": self.make_image()},
+        )
+
+        self.assertRedirects(
+            response,
+            reverse(
+                "servicios:job_detail",
+                args=[self.job.pk],
+            ),
+        )
+
+        self.slot.refresh_from_db()
+        self.job.refresh_from_db()
+
+        self.assertTrue(self.slot.is_captured)
+        self.assertEqual(self.slot.captured_by, self.user)
+        self.assertIsNotNone(self.slot.captured_at)
+
+        self.assertEqual(
+            self.job.status,
+            Job.Status.IN_PROGRESS,
+        )
+        self.assertIsNotNone(self.job.started_at)
+
+    def test_replace_photo(self):
+        self.client.post(
+            self.capture_url,
+            {"photo": self.make_image("primera.png")},
+        )
+
+        self.slot.refresh_from_db()
+        old_name = self.slot.photo_path.name
+        storage = self.slot.photo_path.storage
+
+        with self.captureOnCommitCallbacks(execute=True):
+            self.client.post(
+                self.capture_url,
+                {"photo": self.make_image("segunda.png")},
+            )
+
+        self.slot.refresh_from_db()
+
+        self.assertNotEqual(
+            self.slot.photo_path.name,
+            old_name,
+        )
+        self.assertTrue(
+            storage.exists(self.slot.photo_path.name)
+        )
+        self.assertFalse(storage.exists(old_name))
+
+    def test_reject_invalid_file(self):
+        invalid_file = SimpleUploadedFile(
+            "archivo.txt",
+            b"Esto no es una imagen",
+            content_type="text/plain",
+        )
+
+        response = self.client.post(
+            self.capture_url,
+            {"photo": invalid_file},
+        )
+
+        self.assertEqual(response.status_code, 200)
+
+        self.slot.refresh_from_db()
+        self.assertFalse(self.slot.is_captured)
+
+    def test_other_user_cannot_capture(self):
+        self.client.force_login(self.other_user)
+
+        response = self.client.post(
+            self.capture_url,
+            {"photo": self.make_image()},
+        )
+
+        self.assertEqual(response.status_code, 404)
+
+    def test_cannot_complete_without_required_photo(self):
+        response = self.client.post(self.complete_url)
+
+        self.assertRedirects(
+            response,
+            reverse(
+                "servicios:job_detail",
+                args=[self.job.pk],
+            ),
+        )
+
+        self.job.refresh_from_db()
+
+        self.assertEqual(
+            self.job.status,
+            Job.Status.PENDING,
+        )
+
+    def test_complete_job(self):
+        self.client.post(
+            self.capture_url,
+            {"photo": self.make_image()},
+        )
+
+        self.client.post(self.complete_url)
+
+        self.job.refresh_from_db()
+
+        self.assertEqual(
+            self.job.status,
+            Job.Status.COMPLETED,
+        )
+        self.assertIsNotNone(self.job.completed_at)
+
+    def test_cannot_replace_after_completion(self):
+        self.client.post(
+            self.capture_url,
+            {"photo": self.make_image()},
+        )
+
+        self.client.post(self.complete_url)
+
+        response = self.client.post(
+            self.capture_url,
+            {"photo": self.make_image("otra.png")},
+        )
+
+        self.assertEqual(response.status_code, 400)
