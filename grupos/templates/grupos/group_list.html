@@ -1,0 +1,42 @@
+
+{% extends "base.html" %}
+
+{% block title %}Mis grupos{% endblock %}
+
+{% block content %}
+
+<h2>Mis grupos</h2>
+
+<a href="{% url 'grupos:group_create' %}">
+    Crear grupo
+</a>
+
+<hr>
+
+{% for membership in memberships %}
+
+    <article>
+        <h3>{{ membership.group.name }}</h3>
+
+        <p>
+            {{ membership.group.description|default:"Sin descripción" }}
+        </p>
+
+        <p>
+            Mi rol: {{ membership.get_role_display }}
+        </p>
+
+        <a href="{% url 'grupos:group_detail' membership.group.pk %}">
+            Ver grupo
+        </a>
+    </article>
+
+    <hr>
+
+{% empty %}
+
+    <p>Todavía no perteneces a ningún grupo.</p>
+
+{% endfor %}
+
+{% endblock %}

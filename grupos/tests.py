@@ -6,6 +6,7 @@ from django.core.exceptions import ValidationError
 from django.db import IntegrityError, transaction
 from django.test import TestCase
 from django.utils import timezone
+from django.urls import reverse
 
 from .models import Group, GroupMember, GroupInvitation
 from .services import create_group
@@ -209,3 +210,195 @@ class GroupInvitationTests(TestCase):
         )
 
         self.assertNotEqual(first.token, second.token)
+
+
+class GroupViewTests(TestCase):
+
+    def setUp(self):
+        self.user = User.objects.create_user(
+            username="admin_grupo",
+            email="admin_grupo@example.com",
+            password="Test12345!",
+        )
+
+        self.member = User.objects.create_user(
+            username="miembro_grupo",
+            email="miembro_grupo@example.com",
+            password="Test12345!",
+        )
+
+        self.outsider = User.objects.create_user(
+            username="externo_grupo",
+            email="externo_grupo@example.com",
+            password="Test12345!",
+        )
+
+        self.group = create_group(
+            user=self.user,
+            name="Cuadrilla Norte",
+            description="Instalaciones MW",
+        )
+
+        GroupMember.objects.create(
+            group=self.group,
+            user=self.member,
+            role=GroupMember.Role.MEMBER,
+        )
+
+        self.detail_url = reverse(
+            "grupos:group_detail",
+            args=[self.group.pk],
+        )
+
+        self.update_url = reverse(
+            "grupos:group_update",
+            args=[self.group.pk],
+        )
+
+        self.client.force_login(self.user)
+
+    def test_group_list_requires_login(self):
+        self.client.logout()
+
+        response = self.client.get(
+            reverse("grupos:group_list")
+        )
+
+        self.assertEqual(response.status_code, 302)
+
+    def test_group_list_shows_memberships(self):
+        response = self.client.get(
+            reverse("grupos:group_list")
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Cuadrilla Norte")
+
+    def test_create_group_page(self):
+        response = self.client.get(
+            reverse("grupos:group_create")
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Crear grupo")
+
+    def test_create_group_assigns_admin(self):
+        response = self.client.post(
+            reverse("grupos:group_create"),
+            {
+                "name": "Cuadrilla Sur",
+                "description": "Mantenimiento",
+            },
+        )
+
+        group = Group.objects.get(
+            name="Cuadrilla Sur"
+        )
+
+        self.assertRedirects(
+            response,
+            reverse(
+                "grupos:group_detail",
+                args=[group.pk],
+            ),
+        )
+
+        self.assertEqual(group.created_by, self.user)
+
+        membership = GroupMember.objects.get(
+            group=group,
+            user=self.user,
+        )
+
+        self.assertEqual(
+            membership.role,
+            GroupMember.Role.ADMIN,
+        )
+
+    def test_group_detail_shows_members(self):
+        response = self.client.get(self.detail_url)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "admin_grupo")
+        self.assertContains(response, "miembro_grupo")
+
+    def test_member_can_view_group(self):
+        self.client.force_login(self.member)
+
+        response = self.client.get(self.detail_url)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Cuadrilla Norte")
+
+    def test_outsider_cannot_view_group(self):
+        self.client.force_login(self.outsider)
+
+        response = self.client.get(self.detail_url)
+
+        self.assertEqual(response.status_code, 404)
+
+    def test_admin_can_update_group(self):
+        response = self.client.post(
+            self.update_url,
+            {
+                "name": "Cuadrilla Actualizada",
+                "description": "Nueva descripción",
+            },
+        )
+
+        self.assertRedirects(
+            response,
+            self.detail_url,
+        )
+
+        self.group.refresh_from_db()
+
+        self.assertEqual(
+            self.group.name,
+            "Cuadrilla Actualizada",
+        )
+
+        self.assertEqual(
+            self.group.description,
+            "Nueva descripción",
+        )
+
+    def test_member_cannot_update_group(self):
+        self.client.force_login(self.member)
+
+        response = self.client.post(
+            self.update_url,
+            {
+                "name": "Cambio no autorizado",
+                "description": "",
+            },
+        )
+
+        self.assertEqual(response.status_code, 404)
+
+        self.group.refresh_from_db()
+
+        self.assertEqual(
+            self.group.name,
+            "Cuadrilla Norte",
+        )
+
+    def test_outsider_cannot_update_group(self):
+        self.client.force_login(self.outsider)
+
+        response = self.client.post(
+            self.update_url,
+            {
+                "name": "Cambio externo",
+                "description": "",
+            },
+        )
+
+        self.assertEqual(response.status_code, 404)
+
+        self.group.refresh_from_db()
+
+        self.assertEqual(
+            self.group.name,
+            "Cuadrilla Norte",
+        )

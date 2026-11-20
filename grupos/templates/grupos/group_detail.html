@@ -1,0 +1,43 @@
+
+{% extends "base.html" %}
+
+{% block title %}{{ group.name }}{% endblock %}
+
+{% block content %}
+
+<a href="{% url 'grupos:group_list' %}">
+    Volver a mis grupos
+</a>
+
+<h2>{{ group.name }}</h2>
+
+<p>
+    {{ group.description|default:"Sin descripción" }}
+</p>
+
+<p>
+    Tu rol: {{ membership.get_role_display }}
+</p>
+
+{% if membership.role == "admin" %}
+    <a href="{% url 'grupos:group_update' group.pk %}">
+        Editar grupo
+    </a>
+{% endif %}
+
+<hr>
+
+<h3>Miembros</h3>
+
+<ul>
+    {% for member in members %}
+        <li>
+            {{ member.user.username }}
+            — {{ member.get_role_display }}
+        </li>
+    {% empty %}
+        <li>Este grupo todavía no tiene miembros.</li>
+    {% endfor %}
+</ul>
+
+{% endblock %}
