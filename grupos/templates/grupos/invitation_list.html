@@ -1,0 +1,65 @@
+
+{% extends "base.html" %}
+
+{% block title %}Mis invitaciones{% endblock %}
+
+{% block content %}
+
+<h2>Mis invitaciones</h2>
+
+{% for invitation in invitations %}
+
+    <article>
+        <h3>{{ invitation.group.name }}</h3>
+
+        <p>
+            Invitado por:
+            {{ invitation.invited_by.username }}
+        </p>
+
+        <p>
+            Vence:
+            {{ invitation.expires_at|date:"d/m/Y H:i" }}
+        </p>
+
+        {% if invitation.is_expired %}
+
+            <p>Esta invitación ha vencido.</p>
+
+        {% else %}
+
+            <form
+                method="post"
+                action="{% url 'grupos:invitation_respond' invitation.pk %}"
+            >
+                {% csrf_token %}
+
+                <button
+                    type="submit"
+                    name="action"
+                    value="accept"
+                >
+                    Aceptar
+                </button>
+
+                <button
+                    type="submit"
+                    name="action"
+                    value="reject"
+                >
+                    Rechazar
+                </button>
+            </form>
+
+        {% endif %}
+    </article>
+
+    <hr>
+
+{% empty %}
+
+    <p>No tienes invitaciones pendientes.</p>
+
+{% endfor %}
+
+{% endblock %}

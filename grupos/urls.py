@@ -27,4 +27,21 @@ urlpatterns = [
         views.group_update,
         name="group_update",
     ),
+
+    path(
+        "grupos/<uuid:pk>/invitar/",
+        views.group_invite,
+        name="group_invite",
+    ),
+    path(
+        "invitaciones/",
+        views.invitation_list,
+        name="invitation_list",
+    ),
+    path(
+        "invitaciones/<uuid:pk>/responder/",
+        views.invitation_respond,
+        name="invitation_respond",
+    ),
+
 ]

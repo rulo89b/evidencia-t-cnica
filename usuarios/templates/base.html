@@ -32,6 +32,10 @@
                     Mis grupos
                 </a>
 
+                <a href="{% url 'grupos:invitation_list' %}">
+                    Mis invitaciones
+                </a>
+
                 <span>{{ user.username }}</span>
 
                 <form method="post"

@@ -1,0 +1,29 @@
+
+{% extends "base.html" %}
+
+{% block title %}Invitar miembro{% endblock %}
+
+{% block content %}
+
+<h2>Invitar a {{ group.name }}</h2>
+
+<p>
+    Introduce el correo de un usuario
+    registrado en Evidencia Técnica.
+</p>
+
+<form method="post">
+    {% csrf_token %}
+
+    {{ form.as_p }}
+
+    <button type="submit">
+        Enviar invitación
+    </button>
+</form>
+
+<a href="{% url 'grupos:group_detail' group.pk %}">
+    Volver al grupo
+</a>
+
+{% endblock %}
