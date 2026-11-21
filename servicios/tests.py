@@ -7,15 +7,16 @@ from PIL import Image
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.urls import reverse
 from django.core.exceptions import PermissionDenied
-from .services import create_job, reassign_job, create_template_photo
-from .models import Job, JobPhotoSlot, JobAssignment
-from grupos.services import create_group
-from grupos.models import GroupMember
 from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError
 from django.db import IntegrityError, transaction
 from django.test import TestCase, override_settings
 from django.utils import timezone
+
+from .services import create_job, reassign_job, create_template_photo
+from .models import Job, JobPhotoSlot, JobAssignment
+from grupos.services import create_group
+from grupos.models import GroupMember
 
 
 from .models import Template, TemplatePhoto
@@ -1196,3 +1197,186 @@ class JobPhotoCaptureTests(TestCase):
         )
 
         self.assertEqual(response.status_code, 400)
+
+
+class GroupJobViewTests(TestCase):
+
+    def setUp(self):
+        self.admin_user = User.objects.create_user(
+            username="admin_trabajos",
+            email="admin_trabajos@example.com",
+            password="Test12345!",
+        )
+
+        self.member = User.objects.create_user(
+            username="tecnico_grupo",
+            email="tecnico_grupo@example.com",
+            password="Test12345!",
+        )
+
+        self.outsider = User.objects.create_user(
+            username="tecnico_externo",
+            email="tecnico_externo@example.com",
+            password="Test12345!",
+        )
+
+        self.group = create_group(
+            user=self.admin_user,
+            name="Cuadrilla Norte",
+        )
+
+        GroupMember.objects.create(
+            group=self.group,
+            user=self.member,
+            role=GroupMember.Role.MEMBER,
+        )
+
+        self.template = Template.objects.create(
+            owner=self.admin_user,
+            name="Instalación MW",
+        )
+
+        self.foreign_template = Template.objects.create(
+            owner=self.outsider,
+            name="Plantilla externa",
+        )
+
+        TemplatePhoto.objects.create(
+            template=self.template,
+            position=1,
+            title="Vista general",
+            stage=TemplatePhoto.Stage.BEFORE,
+        )
+
+        self.url = reverse(
+            "servicios:group_job_create",
+            args=[self.group.pk],
+        )
+
+        self.client.force_login(self.admin_user)
+
+    def valid_data(self):
+        return {
+            "template": str(self.template.pk),
+            "assigned_to": str(self.member.pk),
+            "site_name": "Sitio Hermosillo Norte",
+            "notes": "Instalación nueva",
+            "due_date": "",
+        }
+
+    def test_requires_login(self):
+        self.client.logout()
+
+        response = self.client.get(self.url)
+
+        self.assertEqual(response.status_code, 302)
+
+    def test_member_cannot_create_group_job(self):
+        self.client.force_login(self.member)
+
+        response = self.client.get(self.url)
+
+        self.assertEqual(response.status_code, 404)
+
+    def test_outsider_cannot_create_group_job(self):
+        self.client.force_login(self.outsider)
+
+        response = self.client.get(self.url)
+
+        self.assertEqual(response.status_code, 404)
+
+    def test_form_only_shows_admin_templates(self):
+        response = self.client.get(self.url)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Instalación MW")
+        self.assertNotContains(response, "Plantilla externa")
+
+    def test_form_only_shows_group_members(self):
+        response = self.client.get(self.url)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "tecnico_grupo")
+        self.assertNotContains(response, "tecnico_externo")
+
+    def test_admin_creates_group_job(self):
+        response = self.client.post(
+            self.url,
+            self.valid_data(),
+        )
+
+        self.assertRedirects(
+            response,
+            reverse(
+                "grupos:group_detail",
+                args=[self.group.pk],
+            ),
+        )
+
+        job = Job.objects.get(
+            site_name="Sitio Hermosillo Norte"
+        )
+
+        self.assertEqual(job.group, self.group)
+        self.assertEqual(job.created_by, self.admin_user)
+        self.assertEqual(job.assigned_to, self.member)
+        self.assertEqual(job.template, self.template)
+
+        self.assertEqual(job.photo_slots.count(), 1)
+
+        assignment = job.assignments.get()
+
+        self.assertEqual(
+            assignment.assigned_to,
+            self.member,
+        )
+        self.assertIsNone(assignment.ended_at)
+
+    def test_cannot_use_foreign_template(self):
+        data = self.valid_data()
+        data["template"] = str(self.foreign_template.pk)
+
+        response = self.client.post(self.url, data)
+
+        self.assertEqual(response.status_code, 200)
+
+        self.assertFalse(
+            Job.objects.filter(
+                site_name="Sitio Hermosillo Norte",
+                group=self.group,
+            ).exists()
+        )
+
+    def test_cannot_assign_outsider(self):
+        data = self.valid_data()
+        data["assigned_to"] = str(self.outsider.pk)
+
+        response = self.client.post(self.url, data)
+
+        self.assertEqual(response.status_code, 200)
+
+        self.assertFalse(
+            Job.objects.filter(
+                site_name="Sitio Hermosillo Norte",
+                group=self.group,
+            ).exists()
+        )
+
+    def test_assigned_member_sees_job(self):
+        self.client.post(
+            self.url,
+            self.valid_data(),
+        )
+
+        self.client.force_login(self.member)
+
+        response = self.client.get(
+            reverse("servicios:job_list")
+        )
+
+        self.assertEqual(response.status_code, 200)
+
+        self.assertContains(
+            response,
+            "Sitio Hermosillo Norte",
+        )

@@ -1,7 +1,11 @@
 
 from django import forms
+from django.contrib.auth import get_user_model
 
 from .models import Template, TemplatePhoto, Job
+from grupos.models import GroupMember
+
+User = get_user_model()
 
 
 class TemplateForm(forms.ModelForm):
@@ -110,3 +114,64 @@ class JobPhotoForm(forms.Form):
             )
 
         return photo
+
+
+class GroupJobForm(forms.ModelForm):
+
+    class Meta:
+        model = Job
+
+        fields = [
+            "template",
+            "assigned_to",
+            "site_name",
+            "notes",
+            "due_date",
+        ]
+
+        labels = {
+            "template": "Plantilla",
+            "assigned_to": "Técnico responsable",
+            "site_name": "Nombre del sitio",
+            "notes": "Notas",
+            "due_date": "Fecha límite",
+        }
+
+        widgets = {
+            "notes": forms.Textarea(
+                attrs={"rows": 4}
+            ),
+            "due_date": forms.DateInput(
+                attrs={"type": "date"}
+            ),
+        }
+
+    def __init__(self, *args, user, group, **kwargs):
+        super().__init__(*args, **kwargs)
+
+        # Solo plantillas personales del administrador.
+        self.fields["template"].queryset = (
+            Template.objects.filter(
+                owner=user,
+                deleted_at__isnull=True,
+            ).order_by("name")
+        )
+
+        # Solo usuarios que pertenecen al grupo.
+        member_ids = GroupMember.objects.filter(
+            group=group,
+        ).values_list("user_id", flat=True)
+
+        self.fields["assigned_to"].queryset = (
+            User.objects.filter(
+                pk__in=member_ids
+            ).order_by("username")
+        )
+
+        self.fields["template"].empty_label = (
+            "Selecciona una plantilla"
+        )
+
+        self.fields["assigned_to"].empty_label = (
+            "Selecciona un responsable"
+        )

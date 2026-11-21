@@ -7,7 +7,8 @@ from django.utils import timezone
 from django.views.decorators.http import require_http_methods, require_POST
 from django.http import HttpResponseBadRequest
 
-from .forms import TemplateForm, TemplatePhotoForm, JobForm, JobPhotoForm
+from grupos.models import GroupMember
+from .forms import TemplateForm, TemplatePhotoForm, JobForm, JobPhotoForm, GroupJobForm
 from .models import Template, TemplatePhoto, Job, JobPhotoSlot
 from .services import (
     create_template_photo,
@@ -458,4 +459,64 @@ def job_complete(request, pk):
     return redirect(
         "servicios:job_detail",
         pk=pk,
+    )
+
+
+@login_required
+@require_http_methods(["GET", "POST"])
+def group_job_create(request, group_pk):
+
+    membership = get_object_or_404(
+        GroupMember.objects.select_related("group"),
+        group_id=group_pk,
+        user=request.user,
+        role=GroupMember.Role.ADMIN,
+    )
+
+    group = membership.group
+
+    if request.method == "POST":
+        form = GroupJobForm(
+            request.POST,
+            user=request.user,
+            group=group,
+        )
+
+        if form.is_valid():
+            try:
+                job = create_job(
+                    user=request.user,
+                    group=group,
+                    template=form.cleaned_data["template"],
+                    assigned_to=form.cleaned_data["assigned_to"],
+                    site_name=form.cleaned_data["site_name"],
+                    notes=form.cleaned_data["notes"],
+                    due_date=form.cleaned_data["due_date"],
+                )
+
+            except ValidationError as error:
+                form.add_error(None, error)
+
+            except PermissionDenied as error:
+                form.add_error(None, str(error))
+
+            else:
+                return redirect(
+                    "grupos:group_detail",
+                    pk=group.pk,
+                )
+
+    else:
+        form = GroupJobForm(
+            user=request.user,
+            group=group,
+        )
+
+    return render(
+        request,
+        "servicios/group_job_form.html",
+        {
+            "form": form,
+            "group": group,
+        },
     )

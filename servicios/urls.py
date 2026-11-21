@@ -81,6 +81,11 @@ urlpatterns = [
         name="job_complete",
     ),
 
+    path(
+        "trabajos/grupos/<uuid:group_pk>/nuevo/",
+        views.group_job_create,
+        name="group_job_create",
+    ),
 
 
 ]

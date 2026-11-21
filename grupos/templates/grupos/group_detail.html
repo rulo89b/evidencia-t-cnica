@@ -23,9 +23,15 @@
     <a href="{% url 'grupos:group_update' group.pk %}">
         Editar grupo
     </a>
+    
     <a href="{% url 'grupos:group_invite' group.pk %}">
         Invitar miembro
     </a>
+
+    <a href="{% url 'servicios:group_job_create' group.pk %}">
+        Crear trabajo grupal
+    </a>
+
 {% endif %}
 
 <hr>
