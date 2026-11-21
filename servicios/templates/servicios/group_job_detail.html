@@ -1,0 +1,83 @@
+
+{% extends "base.html" %}
+
+{% block title %}Supervisión de trabajo{% endblock %}
+
+{% block content %}
+
+<h2>{{ job.site_name }}</h2>
+
+<p>Grupo: {{ group.name }}</p>
+<p>Plantilla: {{ job.template.name }}</p>
+<p>Responsable actual: {{ job.assigned_to.username }}</p>
+<p>Estado: {{ job.get_status_display }}</p>
+
+{% if job.status != "completed" and job.status != "cancelled" %}
+    <p>
+        <a href="{% url 'servicios:group_job_reassign' group.pk job.pk %}">
+            Reasignar técnico
+        </a>
+    </p>
+{% endif %}
+
+<h3>Evidencias fotográficas</h3>
+
+{% for slot in slots %}
+    <article>
+        <h4>{{ slot.position }}. {{ slot.title }}</h4>
+
+        {% if slot.photo_path %}
+            <p>Fotografía capturada</p>
+            <p>Por: {{ slot.captured_by.username }}</p>
+            <p>
+                Fecha:
+                {{ slot.captured_at|date:"d/m/Y H:i" }}
+            </p>
+
+            <img
+                src="{{ slot.photo_path.url }}"
+                alt="{{ slot.title }}"
+                style="max-width: 320px; width: 100%;"
+            >
+        {% else %}
+            <p>Pendiente de captura</p>
+        {% endif %}
+    </article>
+    <hr>
+{% empty %}
+    <p>Este trabajo no tiene requisitos fotográficos.</p>
+{% endfor %}
+
+<h3>Historial de asignaciones</h3>
+
+{% for assignment in assignments %}
+    <article>
+        <p>
+            Técnico:
+            <strong>{{ assignment.assigned_to.username }}</strong>
+        </p>
+
+        <p>
+            Desde:
+            {{ assignment.assigned_at|date:"d/m/Y H:i" }}
+        </p>
+
+        {% if assignment.ended_at %}
+            <p>
+                Hasta:
+                {{ assignment.ended_at|date:"d/m/Y H:i" }}
+            </p>
+        {% else %}
+            <p>Asignación actual</p>
+        {% endif %}
+    </article>
+    <hr>
+{% empty %}
+    <p>No hay asignaciones registradas.</p>
+{% endfor %}
+
+<a href="{% url 'servicios:group_job_list' group.pk %}">
+    Volver a los trabajos
+</a>
+
+{% endblock %}

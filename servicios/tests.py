@@ -7,15 +7,16 @@ from PIL import Image
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.urls import reverse
 from django.core.exceptions import PermissionDenied
-from .services import create_job, reassign_job, create_template_photo
-from .models import Job, JobPhotoSlot, JobAssignment
-from grupos.services import create_group
-from grupos.models import GroupMember
 from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError
 from django.db import IntegrityError, transaction
 from django.test import TestCase, override_settings
 from django.utils import timezone
+
+from .services import create_job, reassign_job, create_template_photo
+from .models import Job, JobPhotoSlot, JobAssignment
+from grupos.services import create_group
+from grupos.models import GroupMember
 
 
 from .models import Template, TemplatePhoto
@@ -1196,3 +1197,410 @@ class JobPhotoCaptureTests(TestCase):
         )
 
         self.assertEqual(response.status_code, 400)
+
+
+class GroupJobViewTests(TestCase):
+
+    def setUp(self):
+        self.admin_user = User.objects.create_user(
+            username="admin_trabajos",
+            email="admin_trabajos@example.com",
+            password="Test12345!",
+        )
+
+        self.member = User.objects.create_user(
+            username="tecnico_grupo",
+            email="tecnico_grupo@example.com",
+            password="Test12345!",
+        )
+
+        self.outsider = User.objects.create_user(
+            username="tecnico_externo",
+            email="tecnico_externo@example.com",
+            password="Test12345!",
+        )
+
+        self.group = create_group(
+            user=self.admin_user,
+            name="Cuadrilla Norte",
+        )
+
+        GroupMember.objects.create(
+            group=self.group,
+            user=self.member,
+            role=GroupMember.Role.MEMBER,
+        )
+
+        self.template = Template.objects.create(
+            owner=self.admin_user,
+            name="Instalación MW",
+        )
+
+        self.foreign_template = Template.objects.create(
+            owner=self.outsider,
+            name="Plantilla externa",
+        )
+
+        TemplatePhoto.objects.create(
+            template=self.template,
+            position=1,
+            title="Vista general",
+            stage=TemplatePhoto.Stage.BEFORE,
+        )
+
+        self.url = reverse(
+            "servicios:group_job_create",
+            args=[self.group.pk],
+        )
+
+        self.client.force_login(self.admin_user)
+
+    def valid_data(self):
+        return {
+            "template": str(self.template.pk),
+            "assigned_to": str(self.member.pk),
+            "site_name": "Sitio Hermosillo Norte",
+            "notes": "Instalación nueva",
+            "due_date": "",
+        }
+
+    def test_requires_login(self):
+        self.client.logout()
+
+        response = self.client.get(self.url)
+
+        self.assertEqual(response.status_code, 302)
+
+    def test_member_cannot_create_group_job(self):
+        self.client.force_login(self.member)
+
+        response = self.client.get(self.url)
+
+        self.assertEqual(response.status_code, 404)
+
+    def test_outsider_cannot_create_group_job(self):
+        self.client.force_login(self.outsider)
+
+        response = self.client.get(self.url)
+
+        self.assertEqual(response.status_code, 404)
+
+    def test_form_only_shows_admin_templates(self):
+        response = self.client.get(self.url)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Instalación MW")
+        self.assertNotContains(response, "Plantilla externa")
+
+    def test_form_only_shows_group_members(self):
+        response = self.client.get(self.url)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "tecnico_grupo")
+        self.assertNotContains(response, "tecnico_externo")
+
+    def test_admin_creates_group_job(self):
+        response = self.client.post(
+            self.url,
+            self.valid_data(),
+        )
+
+        self.assertRedirects(
+            response,
+            reverse(
+                "grupos:group_detail",
+                args=[self.group.pk],
+            ),
+        )
+
+        job = Job.objects.get(
+            site_name="Sitio Hermosillo Norte"
+        )
+
+        self.assertEqual(job.group, self.group)
+        self.assertEqual(job.created_by, self.admin_user)
+        self.assertEqual(job.assigned_to, self.member)
+        self.assertEqual(job.template, self.template)
+
+        self.assertEqual(job.photo_slots.count(), 1)
+
+        assignment = job.assignments.get()
+
+        self.assertEqual(
+            assignment.assigned_to,
+            self.member,
+        )
+        self.assertIsNone(assignment.ended_at)
+
+    def test_cannot_use_foreign_template(self):
+        data = self.valid_data()
+        data["template"] = str(self.foreign_template.pk)
+
+        response = self.client.post(self.url, data)
+
+        self.assertEqual(response.status_code, 200)
+
+        self.assertFalse(
+            Job.objects.filter(
+                site_name="Sitio Hermosillo Norte",
+                group=self.group,
+            ).exists()
+        )
+
+    def test_cannot_assign_outsider(self):
+        data = self.valid_data()
+        data["assigned_to"] = str(self.outsider.pk)
+
+        response = self.client.post(self.url, data)
+
+        self.assertEqual(response.status_code, 200)
+
+        self.assertFalse(
+            Job.objects.filter(
+                site_name="Sitio Hermosillo Norte",
+                group=self.group,
+            ).exists()
+        )
+
+    def test_assigned_member_sees_job(self):
+        self.client.post(
+            self.url,
+            self.valid_data(),
+        )
+
+        self.client.force_login(self.member)
+
+        response = self.client.get(
+            reverse("servicios:job_list")
+        )
+
+        self.assertEqual(response.status_code, 200)
+
+        self.assertContains(
+            response,
+            "Sitio Hermosillo Norte",
+        )
+
+
+class GroupJobReassignmentViewTests(TestCase):
+
+    def setUp(self):
+        self.admin_user = User.objects.create_user(
+            username="admin_reasignacion",
+            email="admin_reasignacion@example.com",
+            password="Test12345!",
+        )
+
+        self.member_a = User.objects.create_user(
+            username="tecnico_a",
+            email="tecnico_a@example.com",
+            password="Test12345!",
+        )
+
+        self.member_b = User.objects.create_user(
+            username="tecnico_b",
+            email="tecnico_b@example.com",
+            password="Test12345!",
+        )
+
+        self.outsider = User.objects.create_user(
+            username="externo_reasignacion",
+            email="externo_reasignacion@example.com",
+            password="Test12345!",
+        )
+
+        self.group = create_group(
+            user=self.admin_user,
+            name="Cuadrilla de reasignación",
+        )
+
+        for member in [self.member_a, self.member_b]:
+            GroupMember.objects.create(
+                group=self.group,
+                user=member,
+                role=GroupMember.Role.MEMBER,
+            )
+
+        self.template = Template.objects.create(
+            owner=self.admin_user,
+            name="Plantilla de supervisión",
+        )
+
+        TemplatePhoto.objects.create(
+            template=self.template,
+            position=1,
+            title="Fotografía general",
+            stage=TemplatePhoto.Stage.BEFORE,
+        )
+
+        self.job = create_job(
+            user=self.admin_user,
+            group=self.group,
+            template=self.template,
+            assigned_to=self.member_a,
+            site_name="Sitio de prueba",
+            notes="",
+            due_date=None,
+        )
+
+        self.list_url = reverse(
+            "servicios:group_job_list",
+            args=[self.group.pk],
+        )
+
+        self.detail_url = reverse(
+            "servicios:group_job_detail",
+            args=[self.group.pk, self.job.pk],
+        )
+
+        self.reassign_url = reverse(
+            "servicios:group_job_reassign",
+            args=[self.group.pk, self.job.pk],
+        )
+
+        self.client.force_login(self.admin_user)
+
+    def reassign_to_b(self):
+        return self.client.post(
+            self.reassign_url,
+            {"assigned_to": str(self.member_b.pk)},
+        )
+
+    def test_admin_sees_group_jobs(self):
+        response = self.client.get(self.list_url)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Sitio de prueba")
+
+    def test_member_cannot_see_admin_list(self):
+        self.client.force_login(self.member_a)
+
+        response = self.client.get(self.list_url)
+
+        self.assertEqual(response.status_code, 404)
+
+    def test_admin_can_see_job_detail(self):
+        response = self.client.get(self.detail_url)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Fotografía general")
+        self.assertContains(response, "tecnico_a")
+
+    def test_admin_can_reassign_job(self):
+        response = self.reassign_to_b()
+
+        self.assertRedirects(
+            response,
+            self.detail_url,
+        )
+
+        self.job.refresh_from_db()
+
+        self.assertEqual(
+            self.job.assigned_to,
+            self.member_b,
+        )
+
+    def test_reassignment_updates_history(self):
+        self.reassign_to_b()
+
+        self.assertEqual(
+            self.job.assignments.count(),
+            2,
+        )
+
+        previous = self.job.assignments.get(
+            assigned_to=self.member_a
+        )
+
+        current = self.job.assignments.get(
+            assigned_to=self.member_b
+        )
+
+        self.assertIsNotNone(previous.ended_at)
+        self.assertIsNone(current.ended_at)
+
+    def test_reassignment_preserves_evidence(self):
+        slot = self.job.photo_slots.get()
+
+        slot.photo_path = "job_photos/existing.jpg"
+        slot.captured_by = self.member_a
+        slot.captured_at = timezone.now()
+
+        slot.save(
+            update_fields=[
+                "photo_path",
+                "captured_by",
+                "captured_at",
+            ]
+        )
+
+        self.reassign_to_b()
+
+        slot.refresh_from_db()
+
+        self.assertEqual(
+            slot.photo_path.name,
+            "job_photos/existing.jpg",
+        )
+        self.assertEqual(
+            slot.captured_by,
+            self.member_a,
+        )
+        self.assertIsNotNone(slot.captured_at)
+
+    def test_completed_job_cannot_be_reassigned(self):
+        self.job.status = Job.Status.COMPLETED
+        self.job.save(update_fields=["status"])
+
+        response = self.reassign_to_b()
+
+        self.assertEqual(response.status_code, 404)
+
+        self.job.refresh_from_db()
+
+        self.assertEqual(
+            self.job.assigned_to,
+            self.member_a,
+        )
+
+    def test_cannot_reassign_to_outsider(self):
+        response = self.client.post(
+            self.reassign_url,
+            {"assigned_to": str(self.outsider.pk)},
+        )
+
+        self.assertEqual(response.status_code, 200)
+
+        self.job.refresh_from_db()
+
+        self.assertEqual(
+            self.job.assigned_to,
+            self.member_a,
+        )
+
+    def test_member_cannot_reassign(self):
+        self.client.force_login(self.member_a)
+
+        response = self.reassign_to_b()
+
+        self.assertEqual(response.status_code, 404)
+
+        self.job.refresh_from_db()
+
+        self.assertEqual(
+            self.job.assigned_to,
+            self.member_a,
+        )
+
+    def test_new_assignee_sees_job(self):
+        self.reassign_to_b()
+
+        self.client.force_login(self.member_b)
+
+        response = self.client.get(
+            reverse("servicios:job_list")
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Sitio de prueba")

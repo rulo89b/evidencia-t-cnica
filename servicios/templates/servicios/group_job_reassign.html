@@ -1,0 +1,35 @@
+
+{% extends "base.html" %}
+
+{% block title %}Reasignar trabajo{% endblock %}
+
+{% block content %}
+
+<h2>Reasignar trabajo</h2>
+
+<p>Sitio: {{ job.site_name }}</p>
+
+<p>
+    Responsable actual:
+    <strong>{{ job.assigned_to.username }}</strong>
+</p>
+
+<p>
+    Las fotografías capturadas se conservarán.
+</p>
+
+<form method="post">
+    {% csrf_token %}
+
+    {{ form.as_p }}
+
+    <button type="submit">
+        Confirmar reasignación
+    </button>
+</form>
+
+<a href="{% url 'servicios:group_job_detail' group.pk job.pk %}">
+    Cancelar
+</a>
+
+{% endblock %}

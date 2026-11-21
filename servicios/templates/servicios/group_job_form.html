@@ -1,0 +1,37 @@
+
+{% extends "base.html" %}
+
+{% block title %}Nuevo trabajo grupal{% endblock %}
+
+{% block content %}
+
+<h2>Nuevo trabajo grupal</h2>
+
+<p>
+    Grupo: <strong>{{ group.name }}</strong>
+</p>
+
+<p>
+    Selecciona una de tus plantillas y
+    asigna el trabajo a un miembro del grupo.
+</p>
+
+<form method="post">
+    {% csrf_token %}
+
+    {{ form.non_field_errors }}
+
+    {{ form.as_p }}
+
+    <button type="submit">
+        Crear y asignar trabajo
+    </button>
+</form>
+
+<p>
+    <a href="{% url 'grupos:group_detail' group.pk %}">
+        Cancelar y volver al grupo
+    </a>
+</p>
+
+{% endblock %}
