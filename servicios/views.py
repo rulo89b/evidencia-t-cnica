@@ -5,10 +5,10 @@ from django.shortcuts import render, redirect, get_object_or_404
 from django.core.exceptions import PermissionDenied, ValidationError
 from django.utils import timezone
 from django.views.decorators.http import require_http_methods, require_POST
-from django.http import HttpResponseBadRequest
+from django.http import HttpResponseBadRequest, Http404
 
 from grupos.models import GroupMember
-from .forms import TemplateForm, TemplatePhotoForm, JobForm, JobPhotoForm, GroupJobForm
+from .forms import TemplateForm, TemplatePhotoForm, JobForm, JobPhotoForm, GroupJobForm, GroupJobReassignForm
 from .models import Template, TemplatePhoto, Job, JobPhotoSlot
 from .services import (
     create_template_photo,
@@ -17,6 +17,7 @@ from .services import (
     create_job,
     capture_job_photo,
     complete_job,
+    reassign_job,
 )
 
 
@@ -518,5 +519,144 @@ def group_job_create(request, group_pk):
         {
             "form": form,
             "group": group,
+        },
+    )
+
+
+@login_required
+def group_job_list(request, group_pk):
+
+    membership = get_object_or_404(
+        GroupMember.objects.select_related("group"),
+        group_id=group_pk,
+        user=request.user,
+        role=GroupMember.Role.ADMIN,
+    )
+
+    jobs = (
+        Job.objects.filter(group=membership.group)
+        .select_related("assigned_to", "template")
+        .order_by("-created_at")
+    )
+
+    return render(
+        request,
+        "servicios/group_job_list.html",
+        {
+            "group": membership.group,
+            "jobs": jobs,
+        },
+    )
+
+
+@login_required
+def group_job_detail(request, group_pk, job_pk):
+
+    membership = get_object_or_404(
+        GroupMember.objects.select_related("group"),
+        group_id=group_pk,
+        user=request.user,
+        role=GroupMember.Role.ADMIN,
+    )
+
+    job = get_object_or_404(
+        Job.objects.select_related(
+            "assigned_to",
+            "created_by",
+            "template",
+        ),
+        pk=job_pk,
+        group=membership.group,
+    )
+
+    slots = (
+        job.photo_slots
+        .select_related("captured_by")
+        .order_by("position")
+    )
+
+    assignments = (
+        job.assignments
+        .select_related("assigned_to", "assigned_by")
+        .order_by("-assigned_at")
+    )
+
+    return render(
+        request,
+        "servicios/group_job_detail.html",
+        {
+            "group": membership.group,
+            "job": job,
+            "slots": slots,
+            "assignments": assignments,
+        },
+    )
+
+
+@login_required
+@require_http_methods(["GET", "POST"])
+def group_job_reassign(request, group_pk, job_pk):
+
+    membership = get_object_or_404(
+        GroupMember.objects.select_related("group"),
+        group_id=group_pk,
+        user=request.user,
+        role=GroupMember.Role.ADMIN,
+    )
+
+    job = get_object_or_404(
+        Job.objects.select_related("assigned_to"),
+        pk=job_pk,
+        group=membership.group,
+    )
+
+    if job.status in [
+        Job.Status.COMPLETED,
+        Job.Status.CANCELLED,
+    ]:
+        raise Http404(
+            "No se puede reasignar un trabajo finalizado."
+        )
+
+    if request.method == "POST":
+        form = GroupJobReassignForm(
+            request.POST,
+            group=membership.group,
+            current_assignee=job.assigned_to,
+        )
+
+        if form.is_valid():
+            try:
+                reassign_job(
+                    job=job,
+                    user=request.user,
+                    new_assignee=form.cleaned_data[
+                        "assigned_to"
+                    ],
+                )
+
+            except ValidationError as error:
+                form.add_error(None, error)
+
+            else:
+                return redirect(
+                    "servicios:group_job_detail",
+                    group_pk=group_pk,
+                    job_pk=job.pk,
+                )
+
+    else:
+        form = GroupJobReassignForm(
+            group=membership.group,
+            current_assignee=job.assigned_to,
+        )
+
+    return render(
+        request,
+        "servicios/group_job_reassign.html",
+        {
+            "form": form,
+            "group": membership.group,
+            "job": job,
         },
     )

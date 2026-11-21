@@ -1380,3 +1380,227 @@ class GroupJobViewTests(TestCase):
             response,
             "Sitio Hermosillo Norte",
         )
+
+
+class GroupJobReassignmentViewTests(TestCase):
+
+    def setUp(self):
+        self.admin_user = User.objects.create_user(
+            username="admin_reasignacion",
+            email="admin_reasignacion@example.com",
+            password="Test12345!",
+        )
+
+        self.member_a = User.objects.create_user(
+            username="tecnico_a",
+            email="tecnico_a@example.com",
+            password="Test12345!",
+        )
+
+        self.member_b = User.objects.create_user(
+            username="tecnico_b",
+            email="tecnico_b@example.com",
+            password="Test12345!",
+        )
+
+        self.outsider = User.objects.create_user(
+            username="externo_reasignacion",
+            email="externo_reasignacion@example.com",
+            password="Test12345!",
+        )
+
+        self.group = create_group(
+            user=self.admin_user,
+            name="Cuadrilla de reasignación",
+        )
+
+        for member in [self.member_a, self.member_b]:
+            GroupMember.objects.create(
+                group=self.group,
+                user=member,
+                role=GroupMember.Role.MEMBER,
+            )
+
+        self.template = Template.objects.create(
+            owner=self.admin_user,
+            name="Plantilla de supervisión",
+        )
+
+        TemplatePhoto.objects.create(
+            template=self.template,
+            position=1,
+            title="Fotografía general",
+            stage=TemplatePhoto.Stage.BEFORE,
+        )
+
+        self.job = create_job(
+            user=self.admin_user,
+            group=self.group,
+            template=self.template,
+            assigned_to=self.member_a,
+            site_name="Sitio de prueba",
+            notes="",
+            due_date=None,
+        )
+
+        self.list_url = reverse(
+            "servicios:group_job_list",
+            args=[self.group.pk],
+        )
+
+        self.detail_url = reverse(
+            "servicios:group_job_detail",
+            args=[self.group.pk, self.job.pk],
+        )
+
+        self.reassign_url = reverse(
+            "servicios:group_job_reassign",
+            args=[self.group.pk, self.job.pk],
+        )
+
+        self.client.force_login(self.admin_user)
+
+    def reassign_to_b(self):
+        return self.client.post(
+            self.reassign_url,
+            {"assigned_to": str(self.member_b.pk)},
+        )
+
+    def test_admin_sees_group_jobs(self):
+        response = self.client.get(self.list_url)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Sitio de prueba")
+
+    def test_member_cannot_see_admin_list(self):
+        self.client.force_login(self.member_a)
+
+        response = self.client.get(self.list_url)
+
+        self.assertEqual(response.status_code, 404)
+
+    def test_admin_can_see_job_detail(self):
+        response = self.client.get(self.detail_url)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Fotografía general")
+        self.assertContains(response, "tecnico_a")
+
+    def test_admin_can_reassign_job(self):
+        response = self.reassign_to_b()
+
+        self.assertRedirects(
+            response,
+            self.detail_url,
+        )
+
+        self.job.refresh_from_db()
+
+        self.assertEqual(
+            self.job.assigned_to,
+            self.member_b,
+        )
+
+    def test_reassignment_updates_history(self):
+        self.reassign_to_b()
+
+        self.assertEqual(
+            self.job.assignments.count(),
+            2,
+        )
+
+        previous = self.job.assignments.get(
+            assigned_to=self.member_a
+        )
+
+        current = self.job.assignments.get(
+            assigned_to=self.member_b
+        )
+
+        self.assertIsNotNone(previous.ended_at)
+        self.assertIsNone(current.ended_at)
+
+    def test_reassignment_preserves_evidence(self):
+        slot = self.job.photo_slots.get()
+
+        slot.photo_path = "job_photos/existing.jpg"
+        slot.captured_by = self.member_a
+        slot.captured_at = timezone.now()
+
+        slot.save(
+            update_fields=[
+                "photo_path",
+                "captured_by",
+                "captured_at",
+            ]
+        )
+
+        self.reassign_to_b()
+
+        slot.refresh_from_db()
+
+        self.assertEqual(
+            slot.photo_path.name,
+            "job_photos/existing.jpg",
+        )
+        self.assertEqual(
+            slot.captured_by,
+            self.member_a,
+        )
+        self.assertIsNotNone(slot.captured_at)
+
+    def test_completed_job_cannot_be_reassigned(self):
+        self.job.status = Job.Status.COMPLETED
+        self.job.save(update_fields=["status"])
+
+        response = self.reassign_to_b()
+
+        self.assertEqual(response.status_code, 404)
+
+        self.job.refresh_from_db()
+
+        self.assertEqual(
+            self.job.assigned_to,
+            self.member_a,
+        )
+
+    def test_cannot_reassign_to_outsider(self):
+        response = self.client.post(
+            self.reassign_url,
+            {"assigned_to": str(self.outsider.pk)},
+        )
+
+        self.assertEqual(response.status_code, 200)
+
+        self.job.refresh_from_db()
+
+        self.assertEqual(
+            self.job.assigned_to,
+            self.member_a,
+        )
+
+    def test_member_cannot_reassign(self):
+        self.client.force_login(self.member_a)
+
+        response = self.reassign_to_b()
+
+        self.assertEqual(response.status_code, 404)
+
+        self.job.refresh_from_db()
+
+        self.assertEqual(
+            self.job.assigned_to,
+            self.member_a,
+        )
+
+    def test_new_assignee_sees_job(self):
+        self.reassign_to_b()
+
+        self.client.force_login(self.member_b)
+
+        response = self.client.get(
+            reverse("servicios:job_list")
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Sitio de prueba")

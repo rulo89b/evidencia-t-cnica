@@ -87,5 +87,21 @@ urlpatterns = [
         name="group_job_create",
     ),
 
+    path(
+        "trabajos/grupos/<uuid:group_pk>/",
+        views.group_job_list,
+        name="group_job_list",
+    ),
+    path(
+        "trabajos/grupos/<uuid:group_pk>/<uuid:job_pk>/",
+        views.group_job_detail,
+        name="group_job_detail",
+    ),
+    path(
+        "trabajos/grupos/<uuid:group_pk>/<uuid:job_pk>/reasignar/",
+        views.group_job_reassign,
+        name="group_job_reassign",
+    ),
+
 
 ]

@@ -1,0 +1,37 @@
+
+{% extends "base.html" %}
+
+{% block title %}Trabajos del grupo{% endblock %}
+
+{% block content %}
+
+<h2>Trabajos de {{ group.name }}</h2>
+
+<p>
+    <a href="{% url 'servicios:group_job_create' group.pk %}">
+        Crear trabajo
+    </a>
+</p>
+
+{% for job in jobs %}
+    <article>
+        <h3>
+            <a href="{% url 'servicios:group_job_detail' group.pk job.pk %}">
+                {{ job.site_name }}
+            </a>
+        </h3>
+
+        <p>Plantilla: {{ job.template.name }}</p>
+        <p>Responsable: {{ job.assigned_to.username }}</p>
+        <p>Estado: {{ job.get_status_display }}</p>
+    </article>
+    <hr>
+{% empty %}
+    <p>Este grupo todavía no tiene trabajos.</p>
+{% endfor %}
+
+<a href="{% url 'grupos:group_detail' group.pk %}">
+    Volver al grupo
+</a>
+
+{% endblock %}

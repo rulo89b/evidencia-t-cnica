@@ -175,3 +175,33 @@ class GroupJobForm(forms.ModelForm):
         self.fields["assigned_to"].empty_label = (
             "Selecciona un responsable"
         )
+
+
+class GroupJobReassignForm(forms.Form):
+
+    assigned_to = forms.ModelChoiceField(
+        queryset=User.objects.none(),
+        label="Nuevo responsable",
+        empty_label="Selecciona un técnico",
+    )
+
+    def __init__(
+        self,
+        *args,
+        group,
+        current_assignee,
+        **kwargs,
+    ):
+        super().__init__(*args, **kwargs)
+
+        member_ids = GroupMember.objects.filter(
+            group=group,
+        ).values_list("user_id", flat=True)
+
+        self.fields["assigned_to"].queryset = (
+            User.objects.filter(
+                pk__in=member_ids
+            )
+            .exclude(pk=current_assignee.pk)
+            .order_by("username")
+        )
