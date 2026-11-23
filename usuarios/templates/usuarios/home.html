@@ -1,32 +1,127 @@
 
 {% extends "base.html" %}
 
-{% block title %}Inicio | Evidencia Técnica{% endblock %}
+{% block title %}Inicio - Evidencia Técnica{% endblock %}
 
 {% block content %}
 
-<h2>Bienvenido, {{ user.username }}</h2>
+<section class="dashboard">
 
-<p>Selecciona una opción para comenzar.</p>
+    <div class="dashboard-heading">
+        <div>
+            <h1>Panel de trabajo</h1>
 
+            <p class="muted">
+                Bienvenido, {{ user.username }}.
+                Consulta tus actividades y herramientas.
+            </p>
+        </div>
+    </div>
 
-<ul>
-    <li>
-        <a href="{% url 'servicios:job_list' %}">
-            Mis trabajos
+    <section class="stats-grid">
+
+        <article class="stat-card">
+            <span class="stat-label">
+                Trabajos activos
+            </span>
+
+            <strong class="stat-value">
+                {{ active_jobs_count }}
+            </strong>
+        </article>
+
+        <article class="stat-card">
+            <span class="stat-label">
+                Trabajos completados
+            </span>
+
+            <strong class="stat-value">
+                {{ completed_jobs_count }}
+            </strong>
+        </article>
+
+        <article class="stat-card">
+            <span class="stat-label">
+                Mis plantillas
+            </span>
+
+            <strong class="stat-value">
+                {{ templates_count }}
+            </strong>
+        </article>
+
+        <article class="stat-card">
+            <span class="stat-label">
+                Mis grupos
+            </span>
+
+            <strong class="stat-value">
+                {{ groups_count }}
+            </strong>
+        </article>
+
+    </section>
+
+    <h2>Accesos rápidos</h2>
+
+    <section class="action-grid">
+
+        <a class="action-card"
+           href="{% url 'servicios:job_list' %}">
+            <span class="action-icon">📋</span>
+            <strong>Mis trabajos</strong>
+            <span>
+                Consultar trabajos y capturar evidencias.
+            </span>
         </a>
-    </li>
-    <li>
-        <a href="{% url 'servicios:template_list' %}">
-            Mis plantillas
-        </a>
-    </li>
-    <li>
-        <a href="{% url 'grupos:group_list' %}">
-            Mis grupos
-        </a>
-    </li>
-</ul>
 
+        <a class="action-card"
+           href="{% url 'servicios:template_list' %}">
+            <span class="action-icon">📷</span>
+            <strong>Mis plantillas</strong>
+            <span>
+                Crear y configurar requisitos fotográficos.
+            </span>
+        </a>
+
+        <a class="action-card"
+           href="{% url 'grupos:group_list' %}">
+            <span class="action-icon">👥</span>
+            <strong>Mis grupos</strong>
+            <span>
+                Consultar integrantes y trabajos grupales.
+            </span>
+        </a>
+
+        <a class="action-card"
+           href="{% url 'grupos:invitation_list' %}">
+            <span class="action-icon">✉️</span>
+            <strong>Invitaciones</strong>
+            <span>
+                Pendientes: {{ pending_invitations_count }}
+            </span>
+        </a>
+
+    </section>
+
+    {% if admin_groups_count > 0 %}
+
+        <section class="dashboard-section">
+            <h2>Administración</h2>
+
+            <p class="muted">
+                Administras {{ admin_groups_count }}
+                grupo{{ admin_groups_count|pluralize }}.
+            </p>
+
+            <a class="button"
+               href="{% url 'grupos:group_list' %}">
+                Gestionar grupos
+            </a>
+        </section>
+
+    {% endif %}
+
+</section>
 
 {% endblock %}
