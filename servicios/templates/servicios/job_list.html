@@ -5,55 +5,77 @@
 
 {% block content %}
 
-<h2>Mis trabajos</h2>
-
-<a href="{% url 'servicios:job_create' %}">
-    Nuevo trabajo
-</a>
-
-<hr>
-
-{% for job in jobs %}
-
-    <article>
-
-        <h3>{{ job.site_name }}</h3>
-
-        <p>
-            Servicio: {{ job.template.name }}
+<section class="page-heading">
+    <div>
+        <h1>Mis trabajos</h1>
+        <p class="page-description">
+            Consulta tus actividades y evidencias.
         </p>
+    </div>
 
-        <p>
-            Estado: {{ job.get_status_display }}
-        </p>
+    <a class="button"
+       href="{% url 'servicios:job_create' %}">
+        + Nuevo trabajo individual
+    </a>
+</section>
 
-        <p>
-            {% if job.group %}
-                Grupo: {{ job.group.name }}
-            {% else %}
-                Trabajo individual
-            {% endif %}
-        </p>
+<section class="jobs-grid">
 
-        {% if job.due_date %}
-            <p>
-                Fecha límite:
-                {{ job.due_date|date:"d/m/Y" }}
+    {% for job in jobs %}
+
+        <article class="job-card">
+
+            <div class="job-card-header">
+                <h2>{{ job.site_name }}</h2>
+
+                <span class="status-badge status-{{ job.status }}">
+                    {{ job.get_status_display }}
+                </span>
+            </div>
+
+            <p class="muted">
+                Plantilla: {{ job.template.name }}
             </p>
-        {% endif %}
 
-        <a href="{% url 'servicios:job_detail' job.pk %}">
-            Ver trabajo
-        </a>
+            {% if job.group %}
+                <p class="muted">
+                    Grupo: {{ job.group.name }}
+                </p>
+            {% else %}
+                <p class="muted">
+                    Trabajo individual
+                </p>
+            {% endif %}
 
-    </article>
+            {% if job.due_date %}
+                <p class="muted">
+                    Fecha límite:
+                    {{ job.due_date|date:"d/m/Y" }}
+                </p>
+            {% endif %}
 
-    <hr>
+            <div class="job-card-actions">
+                <a class="button button-full"
+                   href="{% url 'servicios:job_detail' job.pk %}">
+                    Ver trabajo
+                </a>
+            </div>
 
-{% empty %}
+        </article>
 
-    <p>Todavía no tienes trabajos asignados.</p>
+    {% empty %}
 
-{% endfor %}
+        <div class="empty-state">
+            <h2>Sin trabajos asignados</h2>
+            <p>
+                Los trabajos que tengas asignados
+                aparecerán aquí.
+            </p>
+        </div>
+
+    {% endfor %}
+
+</section>
 
 {% endblock %}
+

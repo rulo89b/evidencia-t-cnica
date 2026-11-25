@@ -366,3 +366,214 @@ th, td {
         white-space: nowrap;
     }
 }
+
+
+/* ======================================
+   Trabajos y evidencias fotográficas
+   ====================================== */
+
+.page-heading {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    flex-wrap: wrap;
+    gap: 16px;
+    margin-bottom: 24px;
+}
+
+.page-heading h1 {
+    margin: 0 0 6px;
+}
+
+.page-description {
+    color: var(--muted);
+    margin: 0;
+}
+
+/* Listado de trabajos */
+
+.jobs-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 16px;
+}
+
+.job-card {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    margin: 0;
+}
+
+.job-card h2 {
+    margin: 0;
+    font-size: 1.2rem;
+}
+
+.job-card p {
+    margin: 0;
+}
+
+.job-card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    flex-wrap: wrap;
+    gap: 10px;
+}
+
+.job-card-actions {
+    margin-top: auto;
+    padding-top: 8px;
+}
+
+/* Estados */
+
+.status-badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 5px 10px;
+    border-radius: 999px;
+    font-size: 0.78rem;
+    font-weight: 700;
+    white-space: nowrap;
+}
+
+.status-pending {
+    background: #fff3d6;
+    color: #8a5700;
+}
+
+.status-in_progress {
+    background: #dbeafe;
+    color: #1d4ed8;
+}
+
+.status-completed {
+    background: #d1fae5;
+    color: #047857;
+}
+
+.status-cancelled {
+    background: #fee2e2;
+    color: #b91c1c;
+}
+
+/* Checklist fotográfico */
+
+.evidence-list {
+    display: grid;
+    gap: 14px;
+}
+
+.evidence-card {
+    margin: 0;
+    padding: 18px;
+}
+
+.evidence-card-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.evidence-card h3 {
+    margin: 0 0 6px;
+    font-size: 1.05rem;
+}
+
+.evidence-card p {
+    margin: 6px 0;
+}
+
+.evidence-photo {
+    display: block;
+    width: 100%;
+    max-width: 440px;
+    max-height: 340px;
+    object-fit: contain;
+    margin: 14px 0;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: #eef2f6;
+}
+
+/* Progreso */
+
+.progress-track {
+    height: 10px;
+    background: #e2e8f0;
+    border-radius: 999px;
+    overflow: hidden;
+}
+
+.progress-fill {
+    height: 100%;
+    background: var(--accent);
+    border-radius: inherit;
+}
+
+.progress-label {
+    color: var(--muted);
+    font-size: 0.9rem;
+}
+
+/* Captura */
+
+.capture-panel {
+    max-width: 640px;
+    margin-inline: auto;
+}
+
+.capture-preview {
+    display: block;
+    width: 100%;
+    max-height: 420px;
+    object-fit: contain;
+    border-radius: 10px;
+}
+
+.button-full {
+    display: block;
+    width: 100%;
+    text-align: center;
+}
+
+.empty-state {
+    padding: 36px 20px;
+    text-align: center;
+    border: 1px dashed var(--border);
+    border-radius: var(--radius);
+    background: var(--surface);
+}
+
+/* Adaptación móvil */
+
+@media (max-width: 768px) {
+    .jobs-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .job-card,
+    .evidence-card {
+        padding: 16px;
+    }
+
+    .job-card-actions .button,
+    .evidence-card .button {
+        display: block;
+        width: 100%;
+        text-align: center;
+    }
+
+    .capture-panel button[type="submit"] {
+        width: 100%;
+        min-height: 48px;
+    }
+
+    .page-heading {
+        flex-direction: column;
+        align-items: stretch;
+    }
+}

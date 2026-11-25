@@ -9,11 +9,25 @@
     Volver a mis trabajos
 </a>
 
-<h2>{{ job.site_name }}</h2>
 
-<p>Servicio: {{ job.template.name }}</p>
+<section class="page-heading">
 
-<p>Estado: {{ job.get_status_display }}</p>
+    <div>
+        <h1>{{ job.site_name }}</h1>
+
+        <p class="page-description">
+            {{ job.template.name }}
+        </p>
+
+        <p>
+            <span class="status-badge status-{{ job.status }}">
+                {{ job.get_status_display }}
+            </span>
+        </p>
+    </div>
+
+</section>
+
 
 <p>Responsable: {{ job.assigned_to.username }}</p>
 
@@ -55,45 +69,52 @@
 
 {% for slot in slots %}
 
-    <article>
+    
+    <article class="evidence-card">
 
-        <h4>{{ slot.position }}. {{ slot.title }}</h4>
+        <div class="evidence-card-header">
+            <div>
+                <h3>
+                    {{ slot.position }}. {{ slot.title }}
+                </h3>
 
-        <p>Etapa: {{ slot.get_stage_display }}</p>
+                {% if slot.is_required %}
+                    <span class="muted">
+                        Obligatoria
+                    </span>
+                {% else %}
+                    <span class="muted">
+                        Opcional
+                    </span>
+                {% endif %}
+            </div>
 
-        <p>
-            {{ slot.instructions|default:"Sin instrucciones" }}
-        </p>
-
-        <p>
-            {% if slot.is_required %}
-                Obligatoria
-            {% else %}
-                Opcional
-            {% endif %}
-        </p>
-
-        <p>
             {% if slot.is_captured %}
-                Capturada
+                <span class="status-badge status-completed">
+                    Capturada
+                </span>
             {% else %}
-                Pendiente
+                <span class="status-badge status-pending">
+                    Pendiente
+                </span>
             {% endif %}
+        </div>
+
+        {% if slot.instructions %}
+            <p>{{ slot.instructions }}</p>
+        {% endif %}
+
+        <p class="muted">
+            Etapa: {{ slot.get_stage_display }}
         </p>
 
         {% if slot.photo_path %}
-            <p>
-                <img
-                    src="{{ slot.photo_path.url }}"
-                    alt="{{ slot.title }}"
-                    style="max-width:100%; max-height:250px;"
-                >
-            </p>
-
-            <p>
-                Capturada:
-                {{ slot.captured_at|date:"d/m/Y H:i" }}
-            </p>
+            <img
+                class="evidence-photo"
+                src="{{ slot.photo_path.url }}"
+                alt="Evidencia: {{ slot.title }}"
+                loading="lazy"
+            >
         {% endif %}
 
         {% if job.status == "pending" or job.status == "in_progress" %}
@@ -107,6 +128,7 @@
         {% endif %}
 
     </article>
+
 
     <hr>
 

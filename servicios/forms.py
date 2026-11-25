@@ -100,6 +100,13 @@ class JobPhotoForm(forms.Form):
         ),
     )
 
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+        self.fields["photo"].widget.attrs["accept"] = (
+            "image/jpeg,image/png,image/webp"
+        )
+
     def clean_photo(self):
         photo = self.cleaned_data["photo"]
 
