@@ -9,59 +9,77 @@
     Volver al trabajo
 </a>
 
-<h2>{{ slot.title }}</h2>
+<section class="capture-panel">
 
-<p>Etapa: {{ slot.get_stage_display }}</p>
-
-<p>{{ slot.instructions }}</p>
-
-{% if slot.photo_path %}
-    <h3>Fotografía actual</h3>
-    <img
-        src="{{ slot.photo_path.url }}"
-        alt="{{ slot.title }}"
-        style="max-width:100%; max-height:300px;"
-    >
-{% endif %}
-
-<h3>
-    {% if slot.photo_path %}
-        Reemplazar fotografía
-    {% else %}
-        Capturar fotografía
-    {% endif %}
-</h3>
-
-<form method="post" enctype="multipart/form-data">
-    {% csrf_token %}
-
-    {{ form.non_field_errors }}
+    <h2>{{ slot.title }}</h2>
 
     <p>
-        {{ form.photo.label_tag }}
-        {{ form.photo }}
-        {{ form.photo.errors }}
+        Etapa: {{ slot.get_stage_display }}
     </p>
 
-    <div id="preview-container" hidden>
-        <h3>Vista previa</h3>
+    {% if slot.instructions %}
+        <p>{{ slot.instructions }}</p>
+    {% endif %}
+
+    {% if slot.photo_path %}
+        <h3>Fotografía actual</h3>
 
         <img
-            id="photo-preview"
-            alt="Vista previa de la nueva fotografía"
-            style="max-width:100%; max-height:350px;"
+            src="{{ slot.photo_path.url }}"
+            alt="{{ slot.title }}"
+            class="evidence-photo"
         >
-    </div>
+    {% endif %}
 
-    <button type="submit">
-        Guardar fotografía
-    </button>
-</form>
+    <h3>
+        {% if slot.photo_path %}
+            Reemplazar fotografía
+        {% else %}
+            Capturar fotografía
+        {% endif %}
+    </h3>
+
+    <!-- Formulario de captura -->
+    <form method="post" enctype="multipart/form-data">
+        {% csrf_token %}
+
+        {{ form.non_field_errors }}
+
+        <p>
+            {{ form.photo.label_tag }}
+            {{ form.photo }}
+            {{ form.photo.errors }}
+        </p>
+
+        <div id="preview-container" hidden>
+            <h3>Vista previa</h3>
+
+            <img
+                id="photo-preview"
+                class="capture-preview"
+                alt="Vista previa de la nueva fotografía"
+            >
+        </div>
+
+        <button type="submit">
+            Guardar fotografía
+        </button>
+    </form>
+
+</section>
 
 <script>
-    const input = document.querySelector('input[name="photo"]');
-    const preview = document.getElementById("photo-preview");
-    const container = document.getElementById("preview-container");
+    const input = document.querySelector(
+        'input[name="photo"]'
+    );
+
+    const preview = document.getElementById(
+        "photo-preview"
+    );
+
+    const container = document.getElementById(
+        "preview-container"
+    );
 
     let previewUrl = null;
 
@@ -75,12 +93,19 @@
 
         if (!file) {
             container.hidden = true;
+            preview.removeAttribute("src");
             return;
         }
 
         previewUrl = URL.createObjectURL(file);
         preview.src = previewUrl;
         container.hidden = false;
+    });
+
+    window.addEventListener("pagehide", function () {
+        if (previewUrl) {
+            URL.revokeObjectURL(previewUrl);
+        }
     });
 </script>
 

@@ -140,3 +140,34 @@ class AuthenticationTests(TestCase):
             "_auth_user_id",
             self.client.session,
         )
+
+
+class PWAViewTests(TestCase):
+
+    def test_service_worker_is_available(self):
+        response = self.client.get(
+            reverse("service_worker")
+        )
+
+        self.assertEqual(response.status_code, 200)
+
+    def test_service_worker_content_type(self):
+        response = self.client.get(
+            reverse("service_worker")
+        )
+
+        self.assertEqual(
+            response["Content-Type"],
+            "application/javascript",
+        )
+
+    def test_service_worker_does_not_require_login(self):
+        response = self.client.get(
+            reverse("service_worker")
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            response["Cache-Control"],
+            "no-cache",
+        )

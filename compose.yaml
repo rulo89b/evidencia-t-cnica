@@ -7,3 +7,6 @@ services:
       - "8000:8000"
     volumes:
       - .:/app
+    environment:
+      DJANGO_ALLOWED_HOSTS: "${DJANGO_ALLOWED_HOSTS:-localhost,127.0.0.1}"
+      DJANGO_USE_HTTPS_PROXY: "${DJANGO_USE_HTTPS_PROXY:-false}"
