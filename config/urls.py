@@ -18,8 +18,10 @@ from django.conf import settings
 from django.conf.urls.static import static
 from django.contrib import admin
 from django.urls import path, include
+from .views import service_worker
 
 urlpatterns = [
+    path("service-worker.js", service_worker, name="service_worker"),
     path("admin/", admin.site.urls),
     path("", include("usuarios.urls")),
     path("", include("servicios.urls")),
