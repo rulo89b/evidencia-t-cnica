@@ -19,3 +19,8 @@ db.sqlite3
 # Sistema operativo
 .DS_Store
 Thumbs.db
+
+# Configuracion local
+.env
+.env.*
+!.env.example
